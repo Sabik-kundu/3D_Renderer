@@ -1,53 +1,3 @@
-/*--------------
-How does this 3D renderer works: 
-
-  OBJ File
-      │
-      ▼
-  Model Loader
-      │
-      ▼
- Vertex Buffer
-      │
-      ▼
- Model Transform
-      │
-      ▼
- View Transform
-      │
-      ▼
- Projection Transform
-      │
-      ▼
- Clipping
-      │
-      ▼
- Perspective Divide
-      │
-      ▼
- Viewport Transform
-      │
-      ▼
- Triangle Rasterization
-      │
-      ▼
- Depth Test (Z Buffer)
-      │
-      ▼
- Fragment Shading
-      │
-      ▼
- Framebuffer
-      │
-      ▼
-     Screen
-
-
-Currently the models don't have there original colours
-It gets coloured in a sequence of colors.
-----------------*/
-
-
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <windowsx.h>
@@ -359,7 +309,7 @@ static void rasterize_triangle(Framebuffer &fb, ScreenVertex a, ScreenVertex b, 
                                 uint32_t baseColor, bool selected) {
     float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
     if (fabsf(area) < 1e-6f) return;
-    if (area > 0.0f) return; // Backface culling
+    if (area > 0.0f) return;
 
     int minX = (int)floorf(fminf(a.x, fminf(b.x, c.x)));
     int maxX = (int)ceilf(fmaxf(a.x, fmaxf(b.x, c.x)));
@@ -375,8 +325,6 @@ static void rasterize_triangle(Framebuffer &fb, ScreenVertex a, ScreenVertex b, 
     uint32_t baseG = (baseColor >> 8) & 0xFF;
     uint32_t baseB = baseColor & 0xFF;
 
-    // ----- PERFORMANCE IMPROVEMENT: Incremental Edge Functions -----
-    // Instead of doing expensive multiplications per pixel, we step our edges incrementally.
     float dw0dx = a.y - b.y, dw0dy = b.x - a.x;
     float dw1dx = b.y - c.y, dw1dy = c.x - b.x;
     float dw2dx = c.y - a.y, dw2dy = a.x - c.x;
@@ -392,7 +340,6 @@ static void rasterize_triangle(Framebuffer &fb, ScreenVertex a, ScreenVertex b, 
         float w2 = w2_row;
 
         for (int x = minX; x <= maxX; x++) {
-            // Because area < 0, edges inside triangle must be <= 0
             if (w0 <= 0 && w1 <= 0 && w2 <= 0) {
                 float l0 = w1 * invArea;
                 float l1 = w2 * invArea;
@@ -405,19 +352,14 @@ static void rasterize_triangle(Framebuffer &fb, ScreenVertex a, ScreenVertex b, 
                     float invW = l0 * a.invW + l1 * b.invW + l2 * c.invW;
                     float invWSafe = invW != 0.0f ? 1.0f / invW : 0.0f;
 
-                    // Compute World Normal
                     Vec3 normal;
                     normal.x = (l0 * a.normal.x + l1 * b.normal.x + l2 * c.normal.x) * invWSafe;
                     normal.y = (l0 * a.normal.y + l1 * b.normal.y + l2 * c.normal.y) * invWSafe;
                     normal.z = (l0 * a.normal.z + l1 * b.normal.z + l2 * c.normal.z) * invWSafe;
                     normal = vec3_norm(normal);
-
-                    // Compute true UVs
                     float u = (l0 * a.uv.u + l1 * b.uv.u + l2 * c.uv.u) * invWSafe;
                     float v = (l0 * a.uv.v + l1 * b.uv.v + l2 * c.uv.v) * invWSafe;
 
-                    // ----- EXTENSIBILITY IMPROVEMENT: Texturing -----
-                    // A simple procedural checkerboard pattern utilizing your UV data
                     int checker = ((int)floorf(u * 10.0f) + (int)floorf(v * 10.0f)) % 2;
                     float texColorMult = (checker == 0) ? 1.0f : 0.6f; 
 
@@ -438,12 +380,10 @@ static void rasterize_triangle(Framebuffer &fb, ScreenVertex a, ScreenVertex b, 
                     fb.pixels[pixelIdx] = color;
                 }
             }
-            // Step X incrementally
             w0 += dw0dx; 
             w1 += dw1dx; 
             w2 += dw2dx;
         }
-        // Step Y incrementally
         w0_row += dw0dy;
         w1_row += dw1dy;
         w2_row += dw2dy;
@@ -940,10 +880,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmdLine, int showCmd)
         if (focused) {
             float moveSpeed = 2.5f, rotSpeed = 1.6f, lightSpeed = 1.2f;
             
-            // 'A' when pressed it is made sure the selected object move right! 
             Vec3 camForward = vec3_norm(vec3_sub(g_cam.target, eye));
             Vec3 camRight = vec3_norm(vec3_cross(camForward, vec3(0, 1, 0)));
-            camForward.y = 0; camForward = vec3_norm(camForward); // up/down movement is made sure!
+            camForward.y = 0; camForward = vec3_norm(camForward);
             camRight.y = 0; camRight = vec3_norm(camRight);
             
             if (g_selected >= 0 && g_selected < (int)g_models.size()) {
